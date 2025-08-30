@@ -41,6 +41,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     "http://1400329073.vod2.myqcloud.com/d62d88a7vodtranscq1400329073/59c68fe75285890800381567412/adp.10.m3u8",
     "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
     "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+    // 添加一个测试用的公开 m3u8 文件
+    "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
   ];
 
   @override
@@ -111,6 +113,27 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
           _isPlaying = false;
           _isLoading = false;
           _playerStatus = '获取播放信息失败';
+        });
+      } else if (code == -5) { // PLAY_ERR_LICENCE_CHECK_FAIL
+        print("License 检查失败");
+        setState(() {
+          _isPlaying = false;
+          _isLoading = false;
+          _playerStatus = 'License 验证失败';
+        });
+      } else if (code == -6) { // PLAY_ERR_VOD_LOAD_FAIL
+        print("VOD 加载失败");
+        setState(() {
+          _isPlaying = false;
+          _isLoading = false;
+          _playerStatus = '视频加载失败';
+        });
+      } else if (code == -7) { // PLAY_ERR_FILE_NOT_FOUND
+        print("文件未找到");
+        setState(() {
+          _isPlaying = false;
+          _isLoading = false;
+          _playerStatus = '文件未找到';
         });
       }
     });
