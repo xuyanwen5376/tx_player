@@ -1,4 +1,4 @@
-package com.example.player
+package tencent.course.com
 
 import io.flutter.embedding.android.FlutterActivity
 

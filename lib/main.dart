@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:super_player/super_player.dart';
 
 void main() {
   runApp(const MyApp());
@@ -7,116 +8,325 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'TX Player Demo',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const VideoPlayerPage(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+class VideoPlayerPage extends StatefulWidget {
+  const VideoPlayerPage({super.key});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<VideoPlayerPage> createState() => _VideoPlayerPageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _VideoPlayerPageState extends State<VideoPlayerPage> {
+  final TXVodPlayerController _controller = TXVodPlayerController();
+  double _aspectRatio = 0;
+  bool _isPlaying = false;
+  bool _isLoading = false;
+  String _currentUrl = '';
+  String _playerStatus = '准备就绪';
+  
+  // 示例视频URL - 包含腾讯云和公开测试视频
+  final List<String> _videoUrls = [
+    "http://1400329073.vod2.myqcloud.com/d62d88a7vodtranscq1400329073/59c68fe75285890800381567412/adp.10.m3u8",
+    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+  ];
 
-  void _incrementCounter() {
+  @override
+  void initState() {
+    super.initState();
+    _configurePlayerLicense();
+    _initPlayer();
+  }
+
+  void _configurePlayerLicense() {
+    try {
+      // 根据官方文档配置 License
+      String licenceURL = "https://license.vod2.myqcloud.com/license/v2/1367213550_1/v_cube.license";
+      String licenceKey = "da71de3f743a4a523e9d6469d805fb73";
+      
+      // 设置全局 License
+      SuperPlayerPlugin.setGlobalLicense(licenceURL, licenceKey);
+      print("腾讯云播放器 License 配置成功");
+    } catch (e) {
+      print("腾讯云播放器 License 配置失败: $e");
+    }
+  }
+
+  void _initPlayer() {
+    // 监听播放事件
+    _controller.onPlayerEventBroadcast.listen((event) {
+      final int code = event["event"];
+      print("播放事件: $code - 事件详情: $event");
+      
+      if (code == TXVodPlayEvent.PLAY_EVT_PLAY_BEGIN) {
+        print("开始播放");
+        setState(() {
+          _isPlaying = true;
+          _isLoading = false;
+          _playerStatus = '正在播放';
+        });
+      } else if (code == TXVodPlayEvent.PLAY_EVT_PLAY_END) {
+        print("播放结束");
+        setState(() {
+          _isPlaying = false;
+          _isLoading = false;
+          _playerStatus = '播放结束';
+        });
+      } else if (code == TXVodPlayEvent.PLAY_EVT_CHANGE_RESOLUTION) {
+        int? videoWidth = event[TXVodPlayEvent.EVT_PARAM1];
+        int? videoHeight = event[TXVodPlayEvent.EVT_PARAM2];
+        print("分辨率变化: ${videoWidth}x${videoHeight}");
+        if (videoWidth != null && videoHeight != null) {
+          setState(() {
+            _aspectRatio = videoWidth / videoHeight;
+          });
+        }
+      } else if (code == TXVodPlayEvent.PLAY_EVT_PLAY_PROGRESS) {
+        // 播放进度事件
+        int progress = event[TXVodPlayEvent.EVT_PLAY_PROGRESS] ?? 0;
+        int duration = event[TXVodPlayEvent.EVT_PLAY_DURATION] ?? 0;
+        print("播放进度: $progress/$duration 秒");
+      } else if (code == TXVodPlayEvent.PLAY_ERR_NET_DISCONNECT) {
+        print("网络断开错误");
+        setState(() {
+          _isPlaying = false;
+          _isLoading = false;
+          _playerStatus = '网络错误';
+        });
+      } else if (code == TXVodPlayEvent.PLAY_ERR_GET_PLAYINFO_FAIL) {
+        print("获取播放信息失败");
+        setState(() {
+          _isPlaying = false;
+          _isLoading = false;
+          _playerStatus = '获取播放信息失败';
+        });
+      }
+    });
+
+    // 监听播放状态
+    _controller.onPlayerState.listen((state) {
+      print("播放状态变化: $state");
+      if (state == TXPlayerState.failed) {
+        setState(() {
+          _isPlaying = false;
+          _isLoading = false;
+          _playerStatus = '播放失败';
+        });
+      } else if (state == TXPlayerState.buffering) {
+        setState(() {
+          _isLoading = true;
+          _playerStatus = '缓冲中...';
+        });
+      }
+    });
+  }
+
+  void _playVideo(String url) async {
+    print("开始播放视频: $url");
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+      _currentUrl = url;
+      _isPlaying = false;
+      _isLoading = true;
+      _playerStatus = '准备播放...';
+    });
+    
+    try {
+      // 先停止之前的播放
+      await _controller.stop();
+      
+      // 开始播放视频
+      await _controller.startVodPlay(url);
+      print("播放命令已发送");
+      
+    } catch (e) {
+      print('播放视频失败: $e');
+      setState(() {
+        _isPlaying = false;
+        _isLoading = false;
+        _playerStatus = '播放失败: $e';
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('播放失败: $e')),
+        );
+      }
+    }
+  }
+
+  void _pausePlay() {
+    if (_isPlaying) {
+      _controller.pause();
+    } else {
+      _controller.resume();
+    }
+  }
+
+  void _stopPlay() {
+    _controller.stop();
+    setState(() {
+      _isPlaying = false;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
+        title: const Text('TX Player 腾讯云播放器'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+      body: Column(
+        children: [
+          // 视频播放器区域
+          Container(
+            height: 250,
+            margin: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey),
+              borderRadius: BorderRadius.circular(8),
             ),
-          ],
-        ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: _aspectRatio > 0
+                  ? AspectRatio(
+                      aspectRatio: _aspectRatio,
+                      child: TXPlayerVideo(
+                        androidRenderType: FTXAndroidRenderViewType.TEXTURE_VIEW,
+                        onRenderViewCreatedListener: (viewId) {
+                          _controller.setPlayerView(viewId);
+                        },
+                      ),
+                    )
+                  : Container(
+                      color: Colors.black,
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (_isLoading)
+                              const CircularProgressIndicator(
+                                color: Colors.white,
+                              )
+                            else
+                              const Icon(Icons.video_library, size: 48, color: Colors.grey),
+                            const SizedBox(height: 8),
+                            Text(
+                              _playerStatus,
+                              style: const TextStyle(color: Colors.white),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+            ),
+          ),
+          
+          // 播放器状态显示
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  _isPlaying ? Icons.play_circle : Icons.pause_circle,
+                  color: _isPlaying ? Colors.green : Colors.orange,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '状态: $_playerStatus',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // 控制按钮区域
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _pausePlay,
+                  icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
+                  label: Text(_isPlaying ? '暂停' : '播放'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _stopPlay,
+                  icon: const Icon(Icons.stop),
+                  label: const Text('停止'),
+                ),
+              ],
+            ),
+          ),
+          
+          const SizedBox(height: 20),
+          
+          // 视频列表
+          Expanded(
+            child: ListView.builder(
+              itemCount: _videoUrls.length,
+              itemBuilder: (context, index) {
+                final url = _videoUrls[index];
+                final isCurrentVideo = url == _currentUrl;
+                
+                return ListTile(
+                  leading: Icon(
+                    Icons.video_library,
+                    color: isCurrentVideo ? Colors.blue : Colors.grey,
+                  ),
+                  title: Text(
+                    '视频 ${index + 1}',
+                    style: TextStyle(
+                      fontWeight: isCurrentVideo ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                  subtitle: Text(
+                    url,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: ElevatedButton(
+                    onPressed: () => _playVideo(url),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isCurrentVideo ? Colors.blue : null,
+                      foregroundColor: isCurrentVideo ? Colors.white : null,
+                    ),
+                    child: Text(isCurrentVideo ? '播放中' : '播放'),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 }
