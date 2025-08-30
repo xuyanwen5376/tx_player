@@ -1,0 +1,29 @@
+PODS:
+  - Flutter (1.0.0)
+  - super_player (12.7.2):
+    - Flutter
+    - TXLiteAVSDK_Player (= 12.7.19324)
+  - TXLiteAVSDK_Player (12.7.19324)
+
+DEPENDENCIES:
+  - Flutter (from `Flutter`)
+  - super_player (from `.symlinks/plugins/super_player/ios`)
+
+SPEC REPOS:
+  trunk:
+    - TXLiteAVSDK_Player
+
+EXTERNAL SOURCES:
+  Flutter:
+    :path: Flutter
+  super_player:
+    :path: ".symlinks/plugins/super_player/ios"
+
+SPEC CHECKSUMS:
+  Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
+  super_player: 0e296c25bf0ddf45fea2f652b052298c3d496abd
+  TXLiteAVSDK_Player: 389f023bf6f43f79bb15f87c28224cd9d44b8906
+
+PODFILE CHECKSUM: 4305caec6b40dde0ae97be1573c53de1882a07e5
+
+COCOAPODS: 1.16.2
